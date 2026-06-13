@@ -1,0 +1,14 @@
+{
+  "name": "shared-expenses-app",
+  "version": "1.0.0",
+  "description": "Monorepo workspace for Shared Expenses App",
+  "private": true,
+  "scripts": {
+    "setup": "npm install --prefix backend && npm install --prefix frontend",
+    "db:init": "copy .env.template backend\\.env && cd backend && npx prisma db push && npx prisma db seed",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
