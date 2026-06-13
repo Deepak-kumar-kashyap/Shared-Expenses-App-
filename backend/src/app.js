@@ -3,6 +3,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth.routes');
 const importRoutes = require('./routes/import.routes');
 const groupRoutes = require('./routes/group.routes');
+const expenseRoutes = require('./routes/expense.routes');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api', importRoutes);
 app.use('/api', groupRoutes);
+app.use('/api', expenseRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

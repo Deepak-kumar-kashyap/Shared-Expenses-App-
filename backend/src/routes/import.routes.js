@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { uploadCSV, getJobAnomalies } = require('../controllers/import.controller');
+const { resolveJob } = require('../controllers/import-resolution.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
 const router = express.Router();
@@ -21,5 +22,6 @@ const upload = multer({
 // Protected CSV import endpoints
 router.post('/groups/:groupId/import', authMiddleware, upload.single('file'), uploadCSV);
 router.get('/imports/:importJobId/anomalies', authMiddleware, getJobAnomalies);
+router.post('/imports/:importJobId/resolve', authMiddleware, resolveJob);
 
 module.exports = router;
