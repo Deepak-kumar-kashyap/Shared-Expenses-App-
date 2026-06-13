@@ -1,0 +1,186 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relationships
+  memberships  GroupMember[]
+  paidExpenses Expense[]      @relation("ExpensePayer")
+  splits       ExpenseSplit[]
+  sentPayments Settlement[]   @relation("SettlementSender")
+  receivedPayments Settlement[] @relation("SettlementReceiver")
+  resolvedAnomalies ImportAnomaly[] @relation("AnomalyResolver")
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relationships
+  members     GroupMember[]
+  expenses    Expense[]
+  settlements Settlement[]
+  imports     ImportJob[]
+}
+
+model GroupMember {
+  id        String    @id @default(uuid())
+  groupId   String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime? // Null means active. Non-null means left.
+
+  // Relations
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([groupId, userId, joinedAt])
+}
+
+enum SplitType {
+  EQUAL
+  EXACT
+  PERCENTAGE
+  SHARE
+}
+
+model Expense {
+  id           String         @id @default(uuid())
+  groupId      String
+  paidById     String
+  amount       Decimal        @db.Decimal(12, 4) // Stores original amount
+  currency     String         @default("INR")    // INR, USD, etc.
+  exchangeRate Decimal        @default(1.0000)   // Rate to convert to INR (e.g. 83.00 for USD)
+  amountInInr  Decimal        @db.Decimal(12, 4) // Normalized amount for calculations
+  description  String
+  date         DateTime
+  splitType    SplitType      @default(EQUAL)
+  notes        String?
+  importJobId  String?        // Link to the CSV import job if imported
+
+  // Relations
+  group        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer        User           @relation("ExpensePayer", fields: [paidById], references: [id])
+  splits       ExpenseSplit[]
+  importJob    ImportJob?     @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model ExpenseSplit {
+  id          String   @id @default(uuid())
+  expenseId   String
+  userId      String
+  shareValue  Decimal  @db.Decimal(12, 4) // Raw value: e.g. amount for EXACT, percent for PERCENTAGE, ratio for SHARE, 1 for EQUAL
+  amountInInr Decimal  @db.Decimal(12, 4) // Calculated split cost in INR
+
+  // Relations
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([expenseId, userId])
+}
+
+model Settlement {
+  id          String     @id @default(uuid())
+  groupId     String
+  fromUserId  String
+  toUserId    String
+  amount      Decimal    @db.Decimal(12, 4) // Settlement in INR
+  date        DateTime
+  notes       String?
+  importJobId String?    // Link to the CSV import job if imported
+
+  // Relations
+  group       Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromUser    User       @relation("SettlementSender", fields: [fromUserId], references: [id])
+  toUser      User       @relation("SettlementReceiver", fields: [toUserId], references: [id])
+  importJob   ImportJob? @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+enum ImportStatus {
+  PENDING_REVIEW     // File uploaded, anomalies detected, awaiting action
+  PARTIALLY_IMPORTED // Some rows processed, others skipped/failed
+  COMPLETED          // Fully imported
+  FAILED             // Job failed entirely
+}
+
+model ImportJob {
+  id          String         @id @default(uuid())
+  groupId     String
+  fileName    String
+  status      ImportStatus   @default(PENDING_REVIEW)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  anomalies   ImportAnomaly[]
+  expenses    Expense[]
+  settlements Settlement[]
+}
+
+enum AnomalySeverity {
+  ERROR   // Blocks import of this row until resolved
+  WARNING // Allowed to import with a default policy but flagged
+}
+
+enum AnomalyType {
+  DUPLICATE
+  SHIFTED_COLUMNS
+  UNKNOWN_MEMBER
+  MISSING_PAYER
+  INVALID_DATE
+  INVALID_AMOUNT
+  ZERO_AMOUNT
+  SPLIT_MISMATCH
+  USD_CURRENCY
+  SETTLEMENT_AS_EXPENSE
+  MEMBER_OUT_OF_BOUNDS
+}
+
+model ImportAnomaly {
+  id               String          @id @default(uuid())
+  importJobId      String
+  rowIndex         Int             // Line number in CSV (1-indexed)
+  rowData          Json            // The raw record details as parsed
+  anomalyType      AnomalyType
+  description      String
+  severity         AnomalySeverity
+  isResolved       Boolean         @default(false)
+  resolutionAction String?         // Action taken: e.g. "SKIP", "MERGE", "USE_EXCHANGE_RATE_83", "SET_PAYER_XYZ", "IMPORT_AS_SETTLEMENT"
+  resolvedById     String?
+  resolvedAt       DateTime?
+
+  // Relations
+  importJob        ImportJob       @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  resolvedBy       User?           @relation("AnomalyResolver", fields: [resolvedById], references: [id])
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
