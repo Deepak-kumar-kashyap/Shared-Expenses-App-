@@ -1,6 +1,38 @@
 const prisma = require('../services/db');
 const balanceService = require('../services/balance.service');
 
+// Get all groups for the logged-in user
+const getUserGroups = async (req, res) => {
+  try {
+    const memberships = await prisma.groupMembership.findMany({
+      where: { userId: req.user.id },
+      include: {
+        group: {
+          include: {
+            memberships: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const groups = memberships.map(m => m.group);
+    return res.status(200).json({ groups });
+  } catch (error) {
+    console.error('Error fetching user groups:', error);
+    return res.status(500).json({ error: 'An error occurred while fetching groups.' });
+  }
+};
+
 // Create a new group
 const createGroup = async (req, res) => {
   try {
@@ -181,6 +213,7 @@ const getGroupBalances = async (req, res) => {
 };
 
 module.exports = {
+  getUserGroups,
   createGroup,
   addMember,
   removeMember,
