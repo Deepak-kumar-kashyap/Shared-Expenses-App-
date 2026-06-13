@@ -37,13 +37,13 @@ We identified 12+ structural and semantic data issues in the exported CSV file. 
 
 ```mermaid
 erDiagram
-    User ||--o{ GroupMember : "has memberships"
+    User ||--o{ GroupMembership : "has memberships"
     User ||--o{ Expense : "pays expenses"
-    User ||--o{ ExpenseSplit : "owes splits"
+    User ||--o{ ExpenseShare : "owes shares"
     User ||--o{ Settlement : "sends/receives settlements"
     User ||--o{ ImportAnomaly : "resolves anomalies"
     
-    Group ||--o{ GroupMember : "has members"
+    Group ||--o{ GroupMembership : "has memberships"
     Group ||--o{ Expense : "has expenses"
     Group ||--o{ Settlement : "has settlements"
     Group ||--o{ ImportJob : "has import jobs"
@@ -52,16 +52,17 @@ erDiagram
     ImportJob ||--o{ Expense : "imports expenses"
     ImportJob ||--o{ Settlement : "imports settlements"
 
-    Expense ||--o{ ExpenseSplit : "divided into"
+    Expense ||--o{ ExpenseShare : "divided into"
 ```
 
 ### Table Definitions
 
 1. **User**: Represents flatmates (Aisha, Rohan, Priya, Meera, Sam, Dev, and guest Kabir). Stores name, email (for login), and password hashes.
 2. **Group**: Groups of flatmates (e.g., "Flat Shared Expenses" or "Goa Trip").
-3. **GroupMember**: Tracks membership timeline of users in groups with `joinedAt` and `leftAt` timestamps to ensure correct retroactive calculations.
+3. **GroupMembership**: Tracks membership timeline of users in groups with `joinedAt` and `leftAt` timestamps to ensure correct retroactive calculations.
 4. **Expense**: Shared expenses. Stores description, date, original amount/currency, exchange rate, and normalized `amountInInr` for computations.
-5. **ExpenseSplit**: Specifies the portion owed by each member for a given expense, storing the raw share value and the calculated `amountInInr`.
+5. **ExpenseShare**: Specifies the portion owed by each member for a given expense, storing the raw share value and the calculated `amountInInr`.
 6. **Settlement**: Tracks direct payments between users (e.g., Rohan paying Aisha back, or Sam paying deposit) that reduce net debts.
 7. **ImportJob**: Logs file uploads and their review status (`PENDING_REVIEW`, `COMPLETED`, `FAILED`).
 8. **ImportAnomaly**: Records all issues flagged by the CSV parser, saving row index, raw row data as JSON, anomaly category, severity, and the resolution action selected.
+
